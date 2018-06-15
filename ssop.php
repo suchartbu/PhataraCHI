@@ -23,6 +23,7 @@ class ssop {
     private $dom = null;
     private $create_datetime = null;
     private $filename = "";
+    private $pathname = "";
 
     /**
      * Class Config
@@ -39,8 +40,10 @@ class ssop {
         /**
          * ค่าเริ่มต้นของระบบ
          */
-        $this->create_datetime = date('YmdHis');
-
+        //$this->create_datetime = date('YmdHis');
+        $this->create_datetime = new DateTime();
+        $this->pathname = "14354_SSOPBIL_1001_01_" . $this->create_datetime->format('Ymd-His');
+        mkdir('export/' . $this->pathname);
         /**
          * สร้างไฟล์ SSOP
          */
@@ -61,12 +64,12 @@ class ssop {
          */
         $this->dom->getElementsByTagName('HCODE')->item(0)->nodeValue = '14354';
         $this->dom->getElementsByTagName('HName')->item(0)->nodeValue = 'โรงพยาบาลภัทร-ธนบุรี';
-        $this->dom->getElementsByTagName('DATETIME')->item(0)->nodeValue = date('Y-m-d\TH:i:s');
+        $this->dom->getElementsByTagName('DATETIME')->item(0)->nodeValue = $this->create_datetime->format('Y-m-d\TH:i:s');
         $this->dom->getElementsByTagName('SESSNO')->item(0)->nodeValue = '0001';
     }
 
     /**
-     * ไฟล์ BILLTRAN
+     * สร้างไฟล์ BILLTRAN SSOP ตามข้อกำหนด
      */
     protected function set_billtran() {
         $this->set_dom('utf8BIL.xml');
@@ -84,6 +87,7 @@ class ssop {
             $billitem_value .= htmlentities($value['billitem']) . "\n";
         }
         $this->dom->getElementsByTagName('BillItems')->item(0)->nodeValue = $billitem_value;
+        $this->save_billtran();
     }
 
     /**
@@ -141,19 +145,43 @@ class ssop {
             fwrite($file_write, fgets($file_read));
         }
         fwrite($file_write, '<?EndNote HMAC = "' . $str_hash . '" ?>');
-        rename($this->filename . '.xml', 'export/' . $this->filename . '.txt');
+        rename($this->filename . '.xml', 'export/' . $this->pathname . '/' . $this->filename . '.txt');
     }
 
     /**
      * สร้างไฟล์ BILLTRAN SSOP ตามข้อกำหนด
      */
-    public function save_billtran() {
-        $this->filename = "BILLTRAN" . $this->create_datetime;
+    private function save_billtran() {
+        $this->filename = "BILLTRAN" . $this->create_datetime->format('YmdHis');
         $this->dom->save($this->filename . '-utf8.xml');
         $this->save_xml($this->convert_xml());
+    }
+
+    public function save_zip() {
+        $rootPath = realpath('export/' . $this->pathname . '/');
+
+        $zip = new ZipArchive();
+        $zip->open('download/' . $this->pathname . '.zip', ZipArchive::CREATE | ZipArchive::OVERWRITE);
+
+        $files = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($rootPath), RecursiveIteratorIterator::LEAVES_ONLY
+        );
+
+        foreach ($files as $name => $file) {
+            // Skip directories (they would be added automatically)
+            if (!$file->isDir()) {
+                // Get real and relative path for current file
+                $filePath = $file->getRealPath();
+                $relativePath = substr($filePath, strlen($rootPath) + 1);
+
+                // Add current file to archive
+                $zip->addFile($filePath, $relativePath);
+            }
+        }
+        $zip->close();
     }
 
 }
 
 $my = new ssop();
-$my->save_billtran();
+$my->save_zip();
