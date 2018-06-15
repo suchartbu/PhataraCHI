@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ClaimRec System="OP" PayPlan="SS" Version="0.93">
+  <Header>
+    <HCODE></HCODE>
+    <HName></HName>
+    <DATETIME></DATETIME>
+    <SESSNO></SESSNO>
+    <RECCOUNT></RECCOUNT>
+  </Header>
+<Dispensing>
+</Dispensing>
+<DispensedItems>
+</DispensedItems>
+</ClaimRec>

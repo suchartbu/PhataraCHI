@@ -34,7 +34,9 @@ class ssop {
      * ข้อมูล SSOP
      */
     private $billtran = null;
-    private $billitems = null;
+    private $billtran_items = null;
+    private $billdisp = null;
+    private $billdisp_items = null;
 
     public function __construct() {
         /**
@@ -48,6 +50,7 @@ class ssop {
          * สร้างไฟล์ SSOP
          */
         $this->set_billtran();
+        $this->set_billdisp();
     }
 
     /**
@@ -75,19 +78,43 @@ class ssop {
         $this->set_dom('utf8BIL.xml');
 
         $this->dom->getElementsByTagName('RECCOUNT')->item(0)->nodeValue = $this->get_billtran();
-        $billtran_value = "";
+        $billtran = "";
         foreach ($this->billtran as $value) {
-            $billtran_value .= htmlentities($value['billtran']) . "\n";
+            $billtran .= htmlentities($value['billtran']) . "\n";
         }
-        $this->dom->getElementsByTagName('BILLTRAN')->item(0)->nodeValue = $billtran_value;
+        $this->dom->getElementsByTagName('BILLTRAN')->item(0)->nodeValue = $billtran;
 
         $this->set_billitems();
-        $billitem_value = "";
-        foreach ($this->billitems as $value) {
-            $billitem_value .= htmlentities($value['billitem']) . "\n";
+        $billitran_items = "";
+        foreach ($this->billtran_items as $value) {
+            $billitran_items .= htmlentities($value['billitem']) . "\n";
         }
-        $this->dom->getElementsByTagName('BillItems')->item(0)->nodeValue = $billitem_value;
+        $this->dom->getElementsByTagName('BillItems')->item(0)->nodeValue = $billitran_items;
         $this->save_billtran();
+    }
+
+    /**
+     * สร้างไฟล์ BILLDISP SSOP ตามข้อกำหนด
+     */
+    protected function set_billdisp() {
+        $this->set_dom('utf8DIS.xml');
+
+        $this->dom->getElementsByTagName('RECCOUNT')->item(0)->nodeValue = $this->get_billdisp();
+        
+        $dispensing = "";
+        foreach ($this->billdisp as $value) {
+            $dispensing .= htmlentities($value['dispensing']) . "\n";
+        }
+        $this->dom->getElementsByTagName('Dispensing')->item(0)->nodeValue = $dispensing;
+
+        $this->set_billdisp_items();
+        
+        $dispensedItems = "";
+        foreach ($this->billdisp_items as $value) {
+            $dispensedItems .= htmlentities($value['dispenditem']) . "\n";
+        }
+        $this->dom->getElementsByTagName('DispensedItems')->item(0)->nodeValue = $dispensedItems;
+        $this->save_billdisp();
     }
 
     /**
@@ -114,7 +141,34 @@ class ssop {
         $sql = "SELECT concat(`Invno`, '|',`SvDate`, '|',`BillMuad`, '|',`LCCode`, '|',`STDCode`, '|',`Desc01`, '|',`QTY`, '|',`UP`, '|',`ChargeAmt`, '|',`ClaimUP`, '|',`ClaimAmount`, '|',`SvRefID`, '|',`ClaimCat`) AS `billitem` FROM `billitem`";
         $stmt = $db_conn->prepare($sql);
         $stmt->execute();
-        $this->billitems = $stmt->fetchAll();
+        $this->billtran_items = $stmt->fetchAll();
+    }
+
+    /**
+     * อ่านตาราง billdisp และจำนวนรายทั้งหมด และกำหนดค่าให้ billdisp
+     * @return integer จำนวนรายการ
+     */
+    private function get_billdisp() {
+        $config = $this->config;
+        $db_conn = new PDO($config['dsn'], $config['username'], $config['password'], $config['options']);
+        $sql = "SELECT concat(`ProviderID`, '|',`Dispid`, '|',`Invno`, '|',`HN`, '|',`PID`, '|',`PRESCDT`, '|',`DISPDT`, '|',`DMSDRCTF`, '|',`Icount`, '|',`Charge`, '|',`Claim`, '|',`Paid`, '|',`OtherPay`, '|',`Reimburser`, '|',`BenefitPlan`, '|',`DispeStat`, '|',`SvID`, '|',`DayCover`) AS `dispensing` FROM `dispensing`";
+        $stmt = $db_conn->prepare($sql);
+        $stmt->execute();
+        $rec_count = $stmt->rowCount();
+        $this->billdisp = $stmt->fetchAll();
+        return $rec_count;
+    }
+    
+    /**
+     * กำหนดค่า billdisp_items
+     */
+    private function set_billdisp_items() {
+        $config = $this->config;
+        $db_conn = new PDO($config['dsn'], $config['username'], $config['password'], $config['options']);
+        $sql = "SELECT concat(`DispID`, '|',`PrdCat`, '|',`Hospdrgid`, '|',`DrgID`, '|',`dfsCode`, '|',`dfsText`, '|',`PACKSIZE`, '|',`SIGCODE`, '|',`SIGTEXT`, '|',`QTY`, '|',`UP`, '|',`Charge`, '|',`ReimbPrice`, '|',`ReimbAmt`, '|',`PrdSetCode`, '|',`Claimcont`, '|',`ClaimCat`, '|',`MultiDisp`, '|',`SupplyFor`) AS `dispenditem` FROM `dispenditem`";
+        $stmt = $db_conn->prepare($sql);
+        $stmt->execute();
+        $this->billdisp_items = $stmt->fetchAll();
     }
 
     /**
@@ -137,6 +191,10 @@ class ssop {
         return hash_file("md5", $this->filename . ".txt");
     }
 
+    /**
+     * 
+     * @param type $str_hash
+     */
     protected function save_xml($str_hash) {
         $file_read = fopen($this->filename . '.txt', "r") or die("Unable to open file!");
         $file_write = fopen($this->filename . '.xml', "w") or die("Unable to open file!");
@@ -153,6 +211,12 @@ class ssop {
      */
     private function save_billtran() {
         $this->filename = "BILLTRAN" . $this->create_datetime->format('YmdHis');
+        $this->dom->save($this->filename . '-utf8.xml');
+        $this->save_xml($this->convert_xml());
+    }
+    
+    private function save_billdisp(){
+        $this->filename = "BILLDISP" . $this->create_datetime->format('YmdHis');
         $this->dom->save($this->filename . '-utf8.xml');
         $this->save_xml($this->convert_xml());
     }
