@@ -24,6 +24,7 @@ class ssop {
     private $create_datetime = null;
     private $filename = "";
     private $pathname = "";
+    private $linecount = 0;
 
     /**
      * Class Config
@@ -37,6 +38,8 @@ class ssop {
     private $billtran_items = null;
     private $billdisp = null;
     private $billdisp_items = null;
+    private $opservices = null;
+    private $opdx = null;
 
     public function __construct() {
         /**
@@ -51,6 +54,7 @@ class ssop {
          */
         $this->set_billtran();
         $this->set_billdisp();
+        $this->set_opservices();
     }
 
     /**
@@ -100,7 +104,7 @@ class ssop {
         $this->set_dom('utf8DIS.xml');
 
         $this->dom->getElementsByTagName('RECCOUNT')->item(0)->nodeValue = $this->get_billdisp();
-        
+
         $dispensing = "";
         foreach ($this->billdisp as $value) {
             $dispensing .= htmlentities($value['dispensing']) . "\n";
@@ -108,13 +112,37 @@ class ssop {
         $this->dom->getElementsByTagName('Dispensing')->item(0)->nodeValue = $dispensing;
 
         $this->set_billdisp_items();
-        
+
         $dispensedItems = "";
         foreach ($this->billdisp_items as $value) {
             $dispensedItems .= htmlentities($value['dispenditem']) . "\n";
         }
         $this->dom->getElementsByTagName('DispensedItems')->item(0)->nodeValue = $dispensedItems;
         $this->save_billdisp();
+    }
+
+    /**
+     * สร้างไฟล์ OPServices SSOP ตามข้อกำหนด
+     */
+    protected function set_opservices() {
+        $this->set_dom('utf8OP.xml');
+
+        $this->dom->getElementsByTagName('RECCOUNT')->item(0)->nodeValue = $this->get_opservices();
+
+        $opservices = "";
+        foreach ($this->opservices as $value) {
+            $opservices .= htmlentities($value['opservices']) . "\n";
+        }
+        $this->dom->getElementsByTagName('OPServices')->item(0)->nodeValue = $opservices;
+
+        $this->set_opdx();
+
+        $opdx = "";
+        foreach ($this->opdx as $value) {
+            $opdx .= htmlentities($value['opdx']) . "\n";
+        }
+        $this->dom->getElementsByTagName('OPDx')->item(0)->nodeValue = $opdx;
+        $this->save_opsevices();
     }
 
     /**
@@ -158,7 +186,7 @@ class ssop {
         $this->billdisp = $stmt->fetchAll();
         return $rec_count;
     }
-    
+
     /**
      * กำหนดค่า billdisp_items
      */
@@ -172,6 +200,33 @@ class ssop {
     }
 
     /**
+     * อ่านตาราง opservices และจำนวนรายทั้งหมด และกำหนดค่าให้ opservices
+     * @return integer จำนวนรายการ
+     */
+    private function get_opservices() {
+        $config = $this->config;
+        $db_conn = new PDO($config['dsn'], $config['username'], $config['password'], $config['options']);
+        $sql = "SELECT concat(`Invno`, '|',`SvID`, '|',`Class`, '|',`Hcode`, '|',`HN`, '|',`Pid`, '|',`CareAccount`, '|',`TypeServ`, '|',`TypeIn`, '|',`TypeOut`, '|',`DTAppoint`, '|',`SvPID`, '|',`Clinic`, '|',`BEGDT`, '|',`ENDDT`, '|',`LcCode`, '|',`CodeSet`, '|',`STDCode`, '|',`SvCharge`, '|',`Completion`, '|',`SvTxCode`, '|',`ClaimCat`) AS `opservices` FROM `opservices`";
+        $stmt = $db_conn->prepare($sql);
+        $stmt->execute();
+        $rec_count = $stmt->rowCount();
+        $this->opservices = $stmt->fetchAll();
+        return $rec_count;
+    }
+
+    /**
+     * กำหนดค่า billdisp_items
+     */
+    private function set_opdx() {
+        $config = $this->config;
+        $db_conn = new PDO($config['dsn'], $config['username'], $config['password'], $config['options']);
+        $sql = "SELECT concat(`Class`, '|',`SvID`, '|',`SL`, '|',`CodeSet`, '|',`Code`, '|',`Desc01`) AS `opdx` FROM `opdx`";
+        $stmt = $db_conn->prepare($sql);
+        $stmt->execute();
+        $this->opdx = $stmt->fetchAll();
+    }
+
+    /**
      * แปลงไฟล์ UTF8 เป็น TIS-620 ปรับรูปแบบไฟล์เพื่อให้ windows ใช้งานได้
      * @return string hash_value ของไฟล์
      */
@@ -179,10 +234,13 @@ class ssop {
         $file_read = fopen($this->filename . '-utf8.xml', "r") or die("Unable to open file!");
         $file_write = fopen($this->filename . '.txt', "w") or die("Unable to open file!");
         fgets($file_read); //อ่านบรรทัดแรกก่อน
+        $this->linecount = 0;
+        fwrite($file_write, iconv("UTF-8", "tis-620", '<?xml version="1.0" encoding="windows-874"?>' . "\r\n"));
         while (!feof($file_read)) {
             $str_line = trim(fgets($file_read), "\n");
             if ($str_line != "") {
                 fwrite($file_write, iconv("UTF-8", "tis-620", $str_line . "\r\n"));
+                $this->linecount++;
             }
         }
         fwrite($file_write, iconv("UTF-8", "tis-620", NULL . "\r\n"));
@@ -198,10 +256,15 @@ class ssop {
     protected function save_xml($str_hash) {
         $file_read = fopen($this->filename . '.txt', "r") or die("Unable to open file!");
         $file_write = fopen($this->filename . '.xml', "w") or die("Unable to open file!");
-        fwrite($file_write, '<?xml version="1.0" encoding="windows-874"?>');
+        $count = 1;
         while (!feof($file_read)) {
             fwrite($file_write, fgets($file_read));
+            $count++;
+            if ($this->linecount < $count) {
+                break;
+            }
         }
+
         fwrite($file_write, '<?EndNote HMAC = "' . $str_hash . '" ?>');
         rename($this->filename . '.xml', 'export/' . $this->pathname . '/' . $this->filename . '.txt');
     }
@@ -210,17 +273,32 @@ class ssop {
      * สร้างไฟล์ BILLTRAN SSOP ตามข้อกำหนด
      */
     private function save_billtran() {
-        $this->filename = "BILLTRAN" . $this->create_datetime->format('YmdHis');
-        $this->dom->save($this->filename . '-utf8.xml');
-        $this->save_xml($this->convert_xml());
-    }
-    
-    private function save_billdisp(){
-        $this->filename = "BILLDISP" . $this->create_datetime->format('YmdHis');
+        $this->filename = "BILLTRAN" . $this->create_datetime->format('Ymd');
         $this->dom->save($this->filename . '-utf8.xml');
         $this->save_xml($this->convert_xml());
     }
 
+    /**
+     * สร้างไฟล์ BILLDISP SSOP ตามข้อกำหนด
+     */
+    private function save_billdisp() {
+        $this->filename = "BILLDISP" . $this->create_datetime->format('Ymd');
+        $this->dom->save($this->filename . '-utf8.xml');
+        $this->save_xml($this->convert_xml());
+    }
+
+    /**
+     * สร้างไฟล์ OPServices SSOP ตามข้อกำหนด
+     */
+    private function save_opsevices() {
+        $this->filename = "OPServices" . $this->create_datetime->format('Ymd');
+        $this->dom->save($this->filename . '-utf8.xml');
+        $this->save_xml($this->convert_xml());
+    }
+
+    /**
+     * สร้าง ZIP SSOP ตามข้อกำหนด
+     */
     public function save_zip() {
         $rootPath = realpath('export/' . $this->pathname . '/');
 
