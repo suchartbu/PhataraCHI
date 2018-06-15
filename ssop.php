@@ -7,9 +7,13 @@
  */
 
 /**
- * Description of ssop
- * 1. สร้าง BILLTRAN
- * @author it
+ * การสร้างไฟล์เบิกประกันสังคม
+ * 1. ไฟล์ BILLTRAN...txt
+ * 2. ไฟล์ BILLDISP...txt
+ * 3. ไฟล์ OPServices....txt
+ * 4. ทำ ZIP ไฟล์
+ * @package Phatara
+ * @author Suchart Bunhachirat <suchartbu@gmail.com>
  */
 class ssop {
 
@@ -17,78 +21,78 @@ class ssop {
      * XML Object ของ DomDocument 
      */
     private $dom = null;
+    private $create_datetime = null;
+    private $filename = "";
 
     /**
-     * Billtran
+     * Class Config
+     */
+    private $config = ['dsn' => 'mysql:host=localhost;dbname=phatara', 'username' => 'root', 'password' => 'it', 'options' => [PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8']];
+
+    /**
+     * ข้อมูล SSOP
      */
     private $billtran = null;
-
-    /**
-     * Billitem
-     */
-    private $billitem = null;
+    private $billitems = null;
 
     public function __construct() {
+        /**
+         * ค่าเริ่มต้นของระบบ
+         */
+        $this->create_datetime = date('YmdHis');
+
+        /**
+         * สร้างไฟล์ SSOP
+         */
         $this->set_billtran();
-        echo "TEST";
-        echo $this->dom->saveXML();
     }
 
-    public function set_billtran() {
+    /**
+     * สร้างไฟล์ XML เริ่มต้น
+     * @param string $template_xml
+     */
+    private function set_dom($template_xml) {
         $this->dom = new DomDocument('1.0', 'utf-8');
         $this->dom->preserveWhiteSpace = FALSE;
         $this->dom->formatOutput = TRUE;
-        $this->dom->load('utf8BIL.xml');
-        $this->file_datetime = date('Y-m-d\TH:i:s');
+        $this->dom->load($template_xml);
         /**
-         * Header BILLTRAN
+         * XML Header
          */
         $this->dom->getElementsByTagName('HCODE')->item(0)->nodeValue = '14354';
         $this->dom->getElementsByTagName('HName')->item(0)->nodeValue = 'โรงพยาบาลภัทร-ธนบุรี';
-        $this->dom->getElementsByTagName('DATETIME')->item(0)->nodeValue = $this->file_datetime;
+        $this->dom->getElementsByTagName('DATETIME')->item(0)->nodeValue = date('Y-m-d\TH:i:s');
         $this->dom->getElementsByTagName('SESSNO')->item(0)->nodeValue = '0001';
-        $this->dom->getElementsByTagName('RECCOUNT')->item(0)->nodeValue = $this->get_billtran();
+    }
 
-        /**
-         * BILL TRAN
-         */
+    /**
+     * ไฟล์ BILLTRAN
+     */
+    protected function set_billtran() {
+        $this->set_dom('utf8BIL.xml');
+
+        $this->dom->getElementsByTagName('RECCOUNT')->item(0)->nodeValue = $this->get_billtran();
         $billtran_value = "";
         foreach ($this->billtran as $value) {
-            $billtran_value .= $value['billtran'] . "\n";
+            $billtran_value .= htmlentities($value['billtran']) . "\n";
         }
         $this->dom->getElementsByTagName('BILLTRAN')->item(0)->nodeValue = $billtran_value;
 
-        /**
-         * BILL ITEM
-         */
-        $this->set_billitem();
+        $this->set_billitems();
         $billitem_value = "";
-        $counter = 0;
-        foreach ($this->billitem as $value) {
-            $billitem_value .= $value['billitem'] . "\n";
-            if($counter >= 2000){
-                break;
-            }
-            $counter++;
+        foreach ($this->billitems as $value) {
+            $billitem_value .= htmlentities($value['billitem']) . "\n";
         }
-        $billitem_value = addslashes($billitem_value);
-        print($billitem_value);
         $this->dom->getElementsByTagName('BillItems')->item(0)->nodeValue = $billitem_value;
     }
 
     /**
-     * อ่านตาราง billtran และจำนวนรายทั้งหมด
-     * @return type
+     * อ่านตาราง billtran และจำนวนรายทั้งหมด และกำหนดค่าให้ billtran
+     * @return integer จำนวนรายการ
      */
-    public function get_billtran() {
-        $dsn = 'mysql:host=localhost;dbname=phatara';
-        $username = 'root';
-        $password = 'it';
-        $options = array(
-            PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8',
-        );
-        $db_conn = new PDO($dsn, $username, $password, $options);
-        //$sql = "SELECT  `id`,`auth_code`,concat(`class`,'|',`subclass`,'|',`code`,'|',`dr`) AS `ipdxop` , `datein`, `dateout` FROM `drgs_ipdxop` WHERE `auth_code` = :auth_code";       
+    private function get_billtran() {
+        $config = $this->config;
+        $db_conn = new PDO($config['dsn'], $config['username'], $config['password'], $config['options']);
         $sql = "SELECT concat(`Station`, '|',`Authcode`, '|',`DTtran`, '|',`Hcode`, '|',`Invno`, '|',`Billno`, '|',`HN`, '|',`MemberNo`, '|',`AMOUNT`, '|',`Paid`, '|',`VerCode`, '|',`Tflag`, '|',`Pid`, '|',`Name`, '|',`HMain`, '|',`PayPlan`, '|',`ClaimAmt`, '|',`OtherPayplan`, '|',`OtherPay`) AS `billtran` FROM `billtran`";
         $stmt = $db_conn->prepare($sql);
         $stmt->execute();
@@ -97,20 +101,59 @@ class ssop {
         return $rec_count;
     }
 
-    public function set_billitem() {
-        $dsn = 'mysql:host=localhost;dbname=phatara';
-        $username = 'root';
-        $password = 'it';
-        $options = array(
-            PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8',
-        );
-        $db_conn = new PDO($dsn, $username, $password, $options);
+    /**
+     * กำหนดค่า billitem
+     */
+    private function set_billitems() {
+        $config = $this->config;
+        $db_conn = new PDO($config['dsn'], $config['username'], $config['password'], $config['options']);
         $sql = "SELECT concat(`Invno`, '|',`SvDate`, '|',`BillMuad`, '|',`LCCode`, '|',`STDCode`, '|',`Desc01`, '|',`QTY`, '|',`UP`, '|',`ChargeAmt`, '|',`ClaimUP`, '|',`ClaimAmount`, '|',`SvRefID`, '|',`ClaimCat`) AS `billitem` FROM `billitem`";
         $stmt = $db_conn->prepare($sql);
         $stmt->execute();
-        $this->billitem = $stmt->fetchAll();
+        $this->billitems = $stmt->fetchAll();
+    }
+
+    /**
+     * แปลงไฟล์ UTF8 เป็น TIS-620 ปรับรูปแบบไฟล์เพื่อให้ windows ใช้งานได้
+     * @return string hash_value ของไฟล์
+     */
+    private function convert_xml() {
+        $file_read = fopen($this->filename . '-utf8.xml', "r") or die("Unable to open file!");
+        $file_write = fopen($this->filename . '.txt', "w") or die("Unable to open file!");
+        fgets($file_read); //อ่านบรรทัดแรกก่อน
+        while (!feof($file_read)) {
+            $str_line = trim(fgets($file_read), "\n");
+            if ($str_line != "") {
+                fwrite($file_write, iconv("UTF-8", "tis-620", $str_line . "\r\n"));
+            }
+        }
+        fwrite($file_write, iconv("UTF-8", "tis-620", NULL . "\r\n"));
+        fclose($file_read);
+        fclose($file_write);
+        return hash_file("md5", $this->filename . ".txt");
+    }
+
+    protected function save_xml($str_hash) {
+        $file_read = fopen($this->filename . '.txt', "r") or die("Unable to open file!");
+        $file_write = fopen($this->filename . '.xml', "w") or die("Unable to open file!");
+        fwrite($file_write, '<?xml version="1.0" encoding="windows-874"?>');
+        while (!feof($file_read)) {
+            fwrite($file_write, fgets($file_read));
+        }
+        fwrite($file_write, '<?EndNote HMAC = "' . $str_hash . '" ?>');
+        rename($this->filename . '.xml', 'export/' . $this->filename . '.txt');
+    }
+
+    /**
+     * สร้างไฟล์ BILLTRAN SSOP ตามข้อกำหนด
+     */
+    public function save_billtran() {
+        $this->filename = "BILLTRAN" . $this->create_datetime;
+        $this->dom->save($this->filename . '-utf8.xml');
+        $this->save_xml($this->convert_xml());
     }
 
 }
 
 $my = new ssop();
+$my->save_billtran();
