@@ -305,7 +305,8 @@ class ssop {
         $rootPath = realpath('export/' . $this->pathname . '/');
 
         $zip = new ZipArchive();
-        $zip->open('download/' . $this->pathname . '.zip', ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $zip_path = 'download/' . $this->pathname . '.zip';
+        $zip->open($zip_path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
 
         $files = new RecursiveIteratorIterator(
                 new RecursiveDirectoryIterator($rootPath), RecursiveIteratorIterator::LEAVES_ONLY
@@ -323,9 +324,11 @@ class ssop {
             }
         }
         $zip->close();
+        return $zip_path;
     }
 
 }
-
+/**
 $my = new ssop();
-$my->save_zip();
+echo $my->save_zip();
+ */
