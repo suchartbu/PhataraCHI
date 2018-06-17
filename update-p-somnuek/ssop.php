@@ -28,9 +28,8 @@ class ssop {
 
     /**
      * Class Config
-     * private $config = ['dsn' => 'mysql:host=localhost;dbname=phatara', 'username' => 'root', 'password' => 'phatara', 'options' => [PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8']];
      */
-    private $config = ['dsn' => 'mysql:host=localhost;dbname=phatara', 'username' => 'phatara', 'password' => 'phatara', 'options' => [PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8']];
+    private $config = ['dsn' => 'mysql:host=localhost;dbname=phatara', 'username' => 'root', 'password' => 'phatara', 'options' => [PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8']];
 
     /**
      * ข้อมูล SSOP
@@ -236,7 +235,7 @@ class ssop {
         $file_write = fopen($this->filename . '.txt', "w") or die("Unable to open file!");
         fgets($file_read); //อ่านบรรทัดแรกก่อน
         $this->linecount = 0;
-        fwrite($file_write, iconv("UTF-8", "tis-620", '<?xml version="1.0" encoding="windows-874"?>' . "\r\n"));
+        fwrite($file_write, iconv("UTF-8", "tis-620", '<?xml version="1.0" encoding="windows-874"?>' . "\r\n")); 
         while (!feof($file_read)) {
             $str_line = trim(fgets($file_read), "\n");
             if ($str_line != "") {
@@ -244,7 +243,7 @@ class ssop {
                 $this->linecount++;
             }
         }
-        /*        fwrite($file_write, iconv("UTF-8", "tis-620", NULL . "\r\n")); 16062561 */
+/*        fwrite($file_write, iconv("UTF-8", "tis-620", NULL . "\r\n")); 16062561*/
         fclose($file_read);
         fclose($file_write);
         return hash_file("md5", $this->filename . ".txt");
@@ -267,7 +266,7 @@ class ssop {
         }
 
         fwrite($file_write, '<?EndNote Checksum = "' . $str_hash . '" ?>');
-        fclose($file_write);
+		fclose($file_write);
         rename($this->filename . '.xml', 'export/' . $this->pathname . '/' . $this->filename . '.txt');
     }
 
